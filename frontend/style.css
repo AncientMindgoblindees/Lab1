@@ -1,0 +1,30 @@
+/* Basic reset */
+body {
+    font-family: system-ui, -apple-system;
+    margin: 20px;
+    background-color: #f0f0f0;
+    color: #333;
+}
+
+/* Heading style */
+h1 {
+    color: #2600ff;
+    text-align: center;
+}
+
+/* Temperature display container */
+div {
+    margin-top: 40px;
+    text-align: center;
+    font-size: 1.5em;
+    padding: 20px;
+    background-color: #ffffff;
+    border-radius: 10px;
+    box-shadow: 0 4px 8px rgba(0,0,0,0.1);
+}
+
+/* Temperature number style */
+#temperature-value {
+    font-weight: bold;
+    color: #ff3300;
+}
