@@ -27,11 +27,13 @@ void server_setup() {
 void server_loop() {
 	server.handleClient();
 	if (RequestFlag) {
+		/*
 		Serial.println("Data request received");
 		for (int i = 0; i < 10; i++) {
 			Serial.println("Data Item: " + String(i));
 			delay(1000);
 		}
+			*/
 		RequestFlag = false;
 	}
 }
@@ -61,5 +63,6 @@ void handle_tempRequest() {
 	// Placeholder temperature data; replace with actual sensor readings
 	float temperature = 25.0; // Example temperature value
 	server.sendHeader("Access-Control-Allow-Origin", "*");
+	RequestFlag = true;
 	server.send(200, "application/json", "{\"temp\":" + String(temperature) + "}");
 }
