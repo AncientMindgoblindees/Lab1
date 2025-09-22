@@ -7,6 +7,7 @@ void hardware_setup();
 void IRAM_ATTR button18_pressed();
 void IRAM_ATTR button19_pressed();
 void hardwareTask(void * parameter);
+void testdrawchar();
 //void gather_tempData();
 //void send_tempData();
 //void send_toLCD();
