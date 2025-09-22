@@ -10,11 +10,21 @@ Button button2 = {GPIO_PIN19, false};
 
 void hardwareTask(void * parameter) {
   int btn;
+  uint32_t lastOledUpdate = millis();
+  uint32_t lastServerDataUpdate = millis();
   for(;;) {
     if(xQueueReceive(buttonQueue, &btn, portMAX_DELAY)) {
       Serial.print("Button on pin ");
       Serial.print(btn);
       Serial.println(" pressed!");
+    }
+    if(millis() - lastOledUpdate > 1000) { // Update OLED every 1 seconds
+      if (btn == GPIO_PIN18 || btn == GPIO_PIN19) { // Only update OLED if a button was pressed
+        lastOledUpdate = millis();
+        // Update OLED display with new data, dependent on button selected.
+        // updateOLED();
+        // Actual OLED update code would go here
+      }
     }
     // Placeholder for hardware-related tasks
     vTaskDelay(1);
@@ -23,6 +33,7 @@ void hardwareTask(void * parameter) {
 
 
 void hardware_setup(){
+  
   pinMode(button1.PIN, INPUT_PULLUP); //Will read a HIGH to Low transition
   pinMode(button2.PIN, INPUT_PULLUP);
   buttonQueue = xQueueCreate(10, sizeof(int)); // up to 10 button events, shovels events into queue during interrupts to be processed in task

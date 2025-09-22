@@ -15,20 +15,12 @@ void server_setup() {
     WiFi.softAP(ssid, password);
     WiFi.softAPConfig(local_ip, gateway, subnet);
     delay(100);
-    
     server.on("/", handle_OnConnect);
-
-    server.on("/data", HTTP_POST, handle_request);
-
+    server.on("/data", HTTP_GET, handle_request);
+	server.on("/temperature", HTTP_GET, handle_tempRequest);
     server.on("/%", HTTP_POST, handle_BadCommand);
     server.onNotFound(handle_NotFound);
-    
     server.begin();
-	server.on("/", handle_OnConnect);
-	server.on("/data", HTTP_POST, handle_request);
-	server.on("/%", HTTP_POST, handle_BadCommand);
-	server.onNotFound(handle_NotFound);
-	server.begin();
 	Serial.println("HTTP server started");
 }
 
@@ -51,6 +43,7 @@ void handle_OnConnect() {
 void handle_request(){
     //temp1
     //temp2 
+	server.sendHeader("Access-Control-Allow-Origin", "*");
 	RequestFlag = true;
     server.send(200, "application/json", "{\"Sending Data\":" + String(RequestFlag) + "}");
 	//server.send(200, "text/plain", "Sending Data");
@@ -64,4 +57,9 @@ void handle_BadCommand() {
 	server.send(400, "text/plain", "Bad Request");
 }
 
-
+void handle_tempRequest() {
+	// Placeholder temperature data; replace with actual sensor readings
+	float temperature = 25.0; // Example temperature value
+	server.sendHeader("Access-Control-Allow-Origin", "*");
+	server.send(200, "application/json", "{\"temp\":" + String(temperature) + "}");
+}

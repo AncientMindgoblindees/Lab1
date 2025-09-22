@@ -22,6 +22,7 @@ void handle_request();
 void handle_NotFound();
 void handle_BadCommand();
 void handle_OnConnect();
+void handle_tempRequest();
 
 
 #endif // SERVER_H

@@ -19,6 +19,7 @@ void serverTask(void * parameter) {
 
 void setup() {
   Serial.begin(9600);
+  interrupts(); //enable interrupts
   hardware_setup();
   server_setup();
   xTaskCreatePinnedToCore(
