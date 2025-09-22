@@ -13,3 +13,32 @@ document.addEventListener('DOMContentLoaded', function() {
     tempDisplay.textContent = temperature + "°F";
 });
 
+
+// Wait until the page loads before running JS
+document.addEventListener('DOMContentLoaded', function() {
+    
+    // Get a reference to the button
+    const toggleButton = document.getElementById('toggle-button');
+
+    // Define the function we want to call
+    async function getTemperature() {
+        try {
+            const response = await fetch("http://192.168.1.1/data"); 
+            const data = await response.json(); // expect something like { "temp": 72 }
+            //document.getElementById("temperature-value").textContent = data.temp + "°F";
+            //tempDisplay.textContent = data.temp + "°F";
+            console.log(data);
+        } catch (error) {
+            console.error("Error fetching temperature:", error);
+        }
+    }
+
+    // Attach the function to the button click
+    toggleButton.addEventListener('click', getTemperature);
+});
+
+
+// Update every second
+//setInterval(getTemperature, 1000);
+
+
