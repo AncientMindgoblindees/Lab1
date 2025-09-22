@@ -17,7 +17,7 @@ void server_setup() {
     delay(100);
     server.on("/", handle_OnConnect);
     server.on("/data", HTTP_GET, handle_request);
-	server.on("/temperature", HTTP_GET, handle_tempRequest);
+	server.on("/temp", HTTP_GET, handle_tempRequest);
     server.on("/%", HTTP_POST, handle_BadCommand);
     server.onNotFound(handle_NotFound);
     server.begin();
@@ -27,11 +27,6 @@ void server_setup() {
 void server_loop() {
 	server.handleClient();
 	if (RequestFlag) {
-		Serial.println("Data request received");
-		for (int i = 0; i < 10; i++) {
-			Serial.println("Data Item: " + String(i));
-			delay(1000);
-		}
 		RequestFlag = false;
 	}
 }
