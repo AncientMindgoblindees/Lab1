@@ -27,16 +27,6 @@ void server_setup() {
 void server_loop() {
 	server.handleClient();
 	if (RequestFlag) {
-<<<<<<< HEAD
-		/*
-		Serial.println("Data request received");
-		for (int i = 0; i < 10; i++) {
-			Serial.println("Data Item: " + String(i));
-			delay(1000);
-		}
-			*/
-=======
->>>>>>> 0bf71eea397707f73d125cbba08167ea5f9291e7
 		RequestFlag = false;
 	}
 }
