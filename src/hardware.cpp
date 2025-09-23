@@ -9,11 +9,9 @@
 
 // Declaration for an SSD1306 display connected to I2C (SDA, SCL pins)
 // The pins for I2C are defined by the Wire-library. 
-// On an arduino UNO:       A4(SDA), A5(SCL)
-// On an arduino MEGA 2560: 20(SDA), 21(SCL)
-// On an arduino LEONARDO:   2(SDA),  3(SCL), ...
+// On an ESP32: 21(SDA), 22(SCL)
 #define OLED_RESET     -1 // Reset pin # (or -1 if sharing Arduino reset pin)
-#define SCREEN_ADDRESS 0x3C ///< See datasheet for Address; 0x3D for 128x64, 0x3C for 128x32
+#define SCREEN_ADDRESS 0x3C ///< See datasheet for Address;  0x3C for 128x32
 Adafruit_SSD1306 display(SCREEN_WIDTH, SCREEN_HEIGHT, &Wire, OLED_RESET);
 
 #define NUMFLAKES     10 // Number of snowflakes in the animation example
@@ -52,18 +50,30 @@ void hardwareTask(void * parameter) {
   int btn;
   uint32_t lastOledUpdate = millis();
   uint32_t lastServerDataUpdate = millis();
+  float sensor1_value;
+  float sensor2_value;
+  int sensorActive; // 1 = sensor1, 2 = sensor2 
   for(;;) {
     if(xQueueReceive(buttonQueue, &btn, portMAX_DELAY)) {
       Serial.print("Button on pin ");
       Serial.print(btn);
       Serial.println(" pressed!");
     }
-    if(millis() - lastOledUpdate > 1000) { // Update OLED every 1 seconds
-      if (btn == GPIO_PIN18 || btn == GPIO_PIN19) { // Only update OLED if a button was pressed
-        lastOledUpdate = millis();
-        // Update OLED display with new data, dependent on button selected.
-        // updateOLED();
-        // Actual OLED update code would go here
+    if (btn == GPIO_PIN18) { //updates place holder sensorActive variable to simulate which sensor is data gathering
+        sensorActive = 1; // Simulate sensor 1 active
+      }
+    if (btn == GPIO_PIN19){ //updates place holder sensorActive variable to simulate which sensor is data gathering
+        sensorActive = 2; // Simulate sensor 2 active
+      }
+    if(millis() - lastOledUpdate > 1000 || xQueueReceive(buttonQueue, &btn, portMAX_DELAY)) { // Update OLED every 1 seconds or also on button press to update OLED immediately
+      lastOledUpdate = millis();
+      testdrawchar(); //draws on screen every second for demo purposes
+      if (sensorActive == 1) {
+        //sensor1_value = readSensor(sensorActive); // Simulate sensor 1 data change
+        updateOLED(sensor1_value);
+      } else if (sensorActive == 2) {
+        //sensor2_value = readSensor(sensorActive); // Simulate sensor 2 data change
+        updateOLED(sensor2_value);
       }
     }
     // Placeholder for hardware-related tasks
@@ -84,27 +94,8 @@ void hardware_setup(){
     Serial.println(F("SSD1306 allocation failed"));
     for(;;); // Don't proceed, loop forever
   }
-
-  // Show initial display buffer contents on the screen --
-  // the library initializes this with an Adafruit splash screen.
+  display.clearDisplay(); //clear display for first use
   display.display();
-  delay(2000); // Pause for 2 seconds
-
-  // Clear the buffer
-  display.clearDisplay();
-
-  // Draw a single pixel in white
-  display.drawPixel(10, 10, SSD1306_WHITE);
-
-  // Show the display buffer on the screen. You MUST call display() after
-  // drawing commands to make them visible on screen!
-  display.display();
-  delay(2000);
-  // display.display() is NOT necessary after every single drawing command,
-  // unless that's what you want...rather, you can batch up a bunch of
-  // drawing operations and then update the screen all at once by calling
-  // display.display(). These examples demonstrate both approaches...
-  testdrawchar();
 }
 
 void IRAM_ATTR button18_pressed() {
@@ -115,7 +106,6 @@ void IRAM_ATTR button18_pressed() {
   BaseType_t xHigherPriorityTaskWoken = pdFALSE; 
   xQueueSendFromISR(buttonQueue, &btn, &xHigherPriorityTaskWoken);
   if (xHigherPriorityTaskWoken) portYIELD_FROM_ISR();
-
 }
 void IRAM_ATTR button19_pressed() {
     // Handle button press interrupt
@@ -126,23 +116,28 @@ void IRAM_ATTR button19_pressed() {
     if (xHigherPriorityTaskWoken) portYIELD_FROM_ISR();
 }
 
-
+void updateOLED(float data) {
+  // Placeholder function to update OLED display with new data
+  display.clearDisplay();
+  display.setTextSize(2);
+  display.setTextColor(SSD1306_WHITE);
+  display.setCursor(0,0);
+  display.println("Updated Data" + String(data));
+  display.display();
+}
 
 void testdrawchar(void) {
   display.clearDisplay();
 
-  display.setTextSize(1);      // Normal 1:1 pixel scale
+  display.setTextSize(3);      // Normal 1:1 pixel scale
   display.setTextColor(SSD1306_WHITE); // Draw white text
   display.setCursor(0, 0);     // Start at top-left corner
   display.cp437(true);         // Use full 256 char 'Code Page 437' font
 
   // Not all the characters will fit on the display. This is normal.
   // Library will draw what it can and the rest will be clipped.
-  display.write("Hello World!");
-  for(int16_t i=0; i<256; i++) {
-    if(i == '\n') display.write(' ');
-    else          display.write(i);
-  }
+  display.print("Hello World!");
+  
   display.display();
   delay(2000);
 }

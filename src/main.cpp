@@ -38,7 +38,6 @@ void setup() {
                 1,             /* priority of the task */
                 NULL,          /* Task handle to keep track of created task */
                 1);            /* pin task to core 1 */
-  Serial.println("HTTP server started");
 }
 void loop() {
   // Server logic moved to server.cpp
