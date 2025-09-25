@@ -5,45 +5,63 @@
 document.addEventListener('DOMContentLoaded', function() {
     const cf_switch = document.getElementById('celsius_fahrenheit');
     const tempButton = document.getElementById('get_temp_button');
-    const tempDisplay = document.getElementById('temperature-value');
+    const tempDisplay = document.getElementById('temperature_value');
     
-    // Set a temperature variable here
-    const temperature = 75; // <-- you can change this number to test
-
-    // Display it on the page
-    tempDisplay.textContent = temperature + "°F";
-
-    const degState = "F"; // "F" or "C
-
+    // State variables
+    let degState = "F";
+    let currentTemp = null;
+    let tempHist = []; // Array to hold temperature history, max size 300
     
+
+    // Helper functions
     // Define the function we want to call
     async function getTemperature() {
         try {
             const response = await fetch("http://192.168.1.1/temp/stream"); 
-            const data = await response.json(); 
+            const data = await response.json();
+
             console.log("Received data: ", data);
-            tempDisplay.textContent = data.temp + "°F";
+            currentTemp = data.temp;
+
+
+            tempHist.push(currentTemp);
+
+            if(tempHist.length > 300){
+                tempHist.shift(); // Remove oldest entry to maintain size
+            }
+
+            updateTemperatureDisplay();
         } catch (error) {
             console.error("Error fetching temperature:", error);
         }
     }
 
+    function updateTemperatureDisplay() {
+        if (currentTemp === null) {
+            tempDisplay.textContent = "--";
+            return;
+        }
 
+        let displayValue = currentTemp;
+
+        if (degState === "C") {
+            displayValue = ((currentTemp - 32) * (5/9)).toFixed(2);
+            tempDisplay.textContent = displayValue + "°C";
+        } else {
+            displayValue = currentTemp.toFixed(2);
+            tempDisplay.textContent = displayValue + "°F";
+        }
+    }
 
     async function convertTemperature() {
         if (degState === "F") {
-            let currentTemp = parseFloat(tempDisplay.textContent);
-            let celsiusTemp = ((currentTemp - 32) * (5/9)).toFixed(2);
-            tempDisplay.textContent = celsiusTemp + "°C";
             degState = "C";
             cf_switch.textContent = "Switch to °F";
         } else {
-            let currentTemp = parseFloat(tempDisplay.textContent);
-            let fahrenheitTemp = ((currentTemp * (9/5)) + 32).toFixed(2);
-            tempDisplay.textContent = fahrenheitTemp + "°F";
             degState = "F";
             cf_switch.textContent = "Switch to °C";
         }
+        updateTemperatureDisplay();
     }
         
     // Attach the function to the button click
