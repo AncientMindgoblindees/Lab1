@@ -1,15 +1,7 @@
 #include "server.h"
 #include <WiFi.h>
 
-bool RequestFlag = false;
-const char* ssid = "ESP32TEST";
-const char* password = "12345678";
-const int GPIO_PIN19 = 19;
-const int GPIO_PIN18 = 18;
-IPAddress local_ip(192,168,1,1);
-IPAddress gateway(192,168,1,1);
-IPAddress subnet(255,255,255,0);
-WebServer server(80);
+
 
 void server_setup() {
     WiFi.softAP(ssid, password);
