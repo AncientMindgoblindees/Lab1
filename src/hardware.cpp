@@ -61,8 +61,6 @@ void hardwareTask(void * parameter) {
   float sensor1_value = 0.0;
   float sensor2_value = 0.0;
   
-  // Initial display update
-  testdrawchar();
   
   for(;;) {
     // Check for button presses (non-blocking)
@@ -74,20 +72,19 @@ void hardwareTask(void * parameter) {
       // Update display immediately when button is pressed
       updateDisplayBasedOnSensors();
     }
-    
-    // Update OLED every 2 seconds
-    if(millis() - lastOledUpdate > 2000) {
-      lastOledUpdate = millis();
-      updateDisplayBasedOnSensors();
+    else{
+      // Update OLED every 1 seconds
+      if(millis() - lastOledUpdate > 1000) {
+        lastOledUpdate = millis();
+        updateDisplayBasedOnSensors();
+      }
     }
-    
-    // Update sensor readings every 5 seconds
-    if(millis() - lastServerDataUpdate > 5000) {
-      lastServerDataUpdate = millis();
-      readSensorValues();
-    }
-    
-    vTaskDelay(100 / portTICK_PERIOD_MS); // Delay 100ms instead of 1ms
+    // Update sensor readings every 1 seconds
+      if(millis() - lastServerDataUpdate > 1000) {
+        lastServerDataUpdate = millis();
+        readSensorValues();
+      }
+    vTaskDelay(10 / portTICK_PERIOD_MS); // Delay 10ms instead of 1ms
   }
 }
 
@@ -99,26 +96,49 @@ void updateDisplayBasedOnSensors() {
   
   if (sensor1_active && sensor2_active) {
     // Both sensors active - show average
-    float avg = (readSensor(1) + readSensor(2)) / 2.0;
-    display.println("Both Sensors:");
-    display.print("Avg: ");
-    display.print(avg, 1);
-    display.println(" C");
-  } else if (sensor1_active) {
+    float t1 = readSensor(1);
+    float t2 = readSensor(2);
+    if (t1 == DEVICE_DISCONNECTED_C || t2 == DEVICE_DISCONNECTED_C) {
+      display.println("Sensor Error");
+      display.println("Check Conn.");
+    }
+    else{
+      float avg = (t1 + t2) / 2.0;
+      display.println("Both Sensors:");
+      display.print("Avg: ");
+      display.print(avg, 1);
+      display.println(" C"); //Need to add function for changing the unit (F -> C)
+    }
+  }
+  else if (sensor1_active) {
     // Only sensor 1 active
     float temp1 = readSensor(1);
-    display.println("Sensor 1:");
-    display.print("Temp: ");
-    display.print(temp1, 1);
-    display.println(" C");
-  } else if (sensor2_active) {
+    if(temp1 == DEVICE_DISCONNECTED_C) {
+      display.println("Sensor 1 Error");
+      display.println("Check Conn.");
+    }
+    else{
+      display.println("Sensor 1:");
+      display.print("Temp: ");
+      display.print(temp1, 1);
+      display.println(" C");
+    }
+  } 
+  else if (sensor2_active) {
     // Only sensor 2 active
     float temp2 = readSensor(2);
-    display.println("Sensor 2:");
-    display.print("Temp: ");
-    display.print(temp2, 1);
-    display.println(" C");
-  } else {
+    if (temp2 == DEVICE_DISCONNECTED_C) {
+      display.println("Sensor 2 Error");
+      display.println("Check Conn.");
+    }
+    else{
+      display.println("Sensor 2:");
+      display.print("Temp: ");
+      display.print(temp2, 1);
+      display.println(" C");
+    }
+  } 
+  else {
     // No sensors active
     display.println("No Sensors");
     display.println("Active");
@@ -141,7 +161,7 @@ float readSensor(int sensorNum) {
   } else if (sensorNum == 2 && sensor2_active) {
     return sensors.getTempC(sensor2Addr);
   }
-  return -999.0; // Error value
+  return -127.0; // Error value
 }
 
 void hardware_setup(){
@@ -256,7 +276,7 @@ void IRAM_ATTR button26_pressed() {
   xQueueSendFromISR(buttonQueue, &btn, &xHigherPriorityTaskWoken);
   if (xHigherPriorityTaskWoken) portYIELD_FROM_ISR();
 }
-
+/*
 void updateOLED(float data) {
   display.clearDisplay();
   display.setTextSize(2);
@@ -265,9 +285,9 @@ void updateOLED(float data) {
   display.print("Data: ");
   display.println(data, 1);
   display.display();
-}
+}*/
 
-void testdrawchar(void) {
+/*void testdrawchar(void) {
   display.clearDisplay();
   display.setTextSize(2);
   display.setTextColor(SSD1306_WHITE);
@@ -275,17 +295,17 @@ void testdrawchar(void) {
   display.cp437(true);
   display.println("Hello!");
   display.display();
-}
+}*/
 
-void changeSensorState(int sensorNum) {
+/*void changeSensorState(int sensorNum) {
   if (sensorNum == 1) {
     sensor1_active = !sensor1_active;
   } else if (sensorNum == 2) {
     sensor2_active = !sensor2_active;
   }
-}
+}*/
 
-void rescanAndUpdate(DeviceAddress addr, uint8_t index) {
+/*void rescanAndUpdate(DeviceAddress addr, uint8_t index) {
   sensors.begin();
   if (sensors.getAddress(addr, index)) {
     Serial.print("Sensor re-found at index ");
@@ -294,9 +314,9 @@ void rescanAndUpdate(DeviceAddress addr, uint8_t index) {
     Serial.print("Sensor still not found at index ");
     Serial.println(index);
   }
-}
+}*/
 
-bool isSensorConnected(DeviceAddress addr) {
+/*bool isSensorConnected(DeviceAddress addr) {
   DeviceAddress tempAddr;
   for (uint8_t i = 0; i < sensors.getDeviceCount(); i++) {
     if (sensors.getAddress(tempAddr, i)) {
@@ -306,7 +326,7 @@ bool isSensorConnected(DeviceAddress addr) {
     }
   }
   return false;
-}
+}*/
 
 void displayDebugTest() {
   Serial.println("Starting display debug test...");
