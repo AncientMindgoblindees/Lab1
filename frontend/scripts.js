@@ -70,7 +70,7 @@ document.addEventListener('DOMContentLoaded', () => {
     // Fetch once (manual button) — still stores to the buffer
     async function fetchTemperatureOnce() {
         try {
-            const response = await fetch('${BASE_URL}/temp', { cache: 'no-store'});
+            const response = await fetch(`${BASE_URL}/temp`, { cache: 'no-store'});
 
             if (!response.ok) {  // HTTP error
                 pushMissingSample();
@@ -80,8 +80,8 @@ document.addEventListener('DOMContentLoaded', () => {
             const data = await response.json();
 
             // If your device sends Fahrenheit instead, convert here:
-            // const celsius = fToC(parseFloat(data.temp));
-            const celsius = parseFloat(data.temp);
+            const celsius = fToC(parseFloat(data.average || data.sensor1 || data.sensor2));
+            //const celsius = parseFloat(data.average || data.sensor1 || data.sensor2);
 
             if (!Number.isFinite(celsius)) {
                 pushMissingSample();         // malformed number -> missing

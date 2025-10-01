@@ -172,6 +172,7 @@ void handle_BadCommand() {
     server.send(400, "text/plain", "Bad Request");
 }
 
+/*
 void handle_tempRequest() {
 	// Placeholder temperature data; replace with actual sensor readings
 	float temperature = 25.0; // Example temperature value
@@ -179,3 +180,4 @@ void handle_tempRequest() {
 	RequestFlag = true;
 	server.send(200, "application/json", "{\"temp\":" + String(temperature) + "}");
 }
+*/
