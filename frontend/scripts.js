@@ -2,13 +2,14 @@
 
 document.addEventListener('DOMContentLoaded', () => {
     // ======== Config ========
-    const TEMP_URL = "http://192.168.1.1/temp"; 
+    const BASE_URL = "http://192.168.1.1"; 
     const MAX_POINTS = 300; // last 300 seconds
 
     // ======== Elements ========
     const cfSwitchBtn  = document.getElementById('celsius_fahrenheit');
-    const getTempBtn   = document.getElementById('get_temp_button');
-    const tempDisplay  = document.getElementById('temperature-value');
+    const sensor1Btn   = document.getElementById('sensor1_button');
+    const sensor2Btn   = document.getElementById('sensor2_button');
+    const tempDisplay  = document.getElementById('temperature_value');
 
     // ======== State ========
     // We'll store temperatures internally in Celsius so conversions are consistent.
@@ -69,7 +70,7 @@ document.addEventListener('DOMContentLoaded', () => {
     // Fetch once (manual button) — still stores to the buffer
     async function fetchTemperatureOnce() {
         try {
-            const response = await fetch(TEMP_URL, { cache: 'no-store'});
+            const response = await fetch('${BASE_URL}/temp', { cache: 'no-store'});
 
             if (!response.ok) {  // HTTP error
                 pushMissingSample();
@@ -98,14 +99,40 @@ document.addEventListener('DOMContentLoaded', () => {
 
     // Toggle °F/°C without changing stored data
     function toggleUnit() {
-        degState = (degState === 'F') ? 'C' : 'F';
-        cfSwitchBtn.textContent = (degState === 'F') ? 'Switch to °C' : 'Switch to °F';
-        displayLatest();
+    // Determine next mode (0 = Celsius, 1 = Fahrenheit)
+        const newType = (degState === 'F') ? 0 : 1;
+
+    // Send request to server
+        fetch(`${BASE_URL}/toggle?tempType=${newType}`, { method: "POST" })
+            .then(response => {
+                if (!response.ok) throw new Error("Failed to toggle unit on server");
+                return response.json();
+            })
+            .then(data => {
+                // Update local state based on server response
+                if (data.temp_type === "0" || data.temp_type === 0) {
+                    degState = 'C';
+                    cfSwitchBtn.textContent = 'Switch to °F';
+                } else if (data.temp_type === "1" || data.temp_type === 1) {
+                    degState = 'F';
+                    cfSwitchBtn.textContent = 'Switch to °C';
+                }
+                displayLatest();
+            })
+            .catch(err => {
+                console.error("Error toggling unit:", err);
+            });
+    }
+
+    function toggleSensor(sensorId) {
+        fetch(`${BASE_URL}/toggle?sensor=${sensorId}`, { method: "POST" })
+            .catch(err => console.error(`Error toggling sensor ${sensorId}:`, err));
     }
 
     // ======== Wire up UI ========
     cfSwitchBtn.addEventListener('click', toggleUnit);
-    getTempBtn.addEventListener('click', fetchTemperatureOnce);
+    sensor1Btn.addEventListener('click', () => toggleSensor(1));
+    sensor2Btn.addEventListener('click', () => toggleSensor(2));
 
     // ======== Auto-fetch on connect + every second ========
     // Immediately request once on page load:
@@ -121,7 +148,7 @@ document.addEventListener('DOMContentLoaded', () => {
         } else {
             // Kick one fetch on return, then resume polling
             fetchTemperatureOnce();
-            setInterval(fetchTemperatureOnce, POLL_MS);
+            setInterval(fetchTemperatureOnce, 1000);
         }
     });
 });
