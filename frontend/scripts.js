@@ -9,13 +9,18 @@ document.addEventListener('DOMContentLoaded', () => {
     const cfSwitchBtn  = document.getElementById('celsius_fahrenheit');
     const sensor1Btn   = document.getElementById('sensor1_button');
     const sensor2Btn   = document.getElementById('sensor2_button');
-    const tempDisplay  = document.getElementById('temperature_value');
+    const sensor1Display = document.getElementById('sensor1_value');
+    const sensor2Display = document.getElementById('sensor2_value');
 
     // ======== State ========
-    // We'll store temperatures internally in Celsius so conversions are consistent.
-    let degState = 'F'; // UI display state: 'F' or 'C'
+    // Track what unit the SERVER is currently sending
+    let serverUnit = 'F'; // Server starts in Fahrenheit
+    
+    // Track what unit the UI should display (matches serverUnit)
+    let degState = 'F';
 
     // Fixed-size circular buffer for { ts, celsius }
+    // NOTE: Always stores temperature in Celsius regardless of what server sends
     const tempStore = {
         buf: new Array(MAX_POINTS),
         start: 0,        // index of oldest element
@@ -35,7 +40,6 @@ document.addEventListener('DOMContentLoaded', () => {
             const idx = (this.start + this.size - 1) % MAX_POINTS;
             return this.buf[idx];
         },
-        // Optional helper if you want the whole window of points later (for graphing)
         toArray() {
             const out = [];
             for (let i = 0; i < this.size; i++) {
@@ -54,20 +58,31 @@ document.addEventListener('DOMContentLoaded', () => {
 
     function displayLatest() {
         const last = tempStore.latest();
-        if (!last || last.celsius == null || !Number.isFinite(last.celsius)) {
-            tempDisplay.textContent = '--';
+        const unit = serverUnit === 'F' ? '°F' : '°C';
+        
+        if (!last || !last.sensor1 || !last.sensor2) {
+            // Handle missing data
+            sensor1Display.textContent = last?.sensor1 ? `${last.sensor1.toFixed(2)}${unit}` : '--';
+            sensor2Display.textContent = last?.sensor2 ? `${last.sensor2.toFixed(2)}${unit}` : '--';
             return;
         }
-        const value = (degState === 'F') ? cToF(last.celsius) : last.celsius;
-        tempDisplay.textContent = value.toFixed(2) + (degState === 'F' ? '°F' : '°C');
+        
+        // Display both sensor values
+        sensor1Display.textContent = `${last.sensor1.toFixed(2)}${unit}`;
+        sensor2Display.textContent = `${last.sensor2.toFixed(2)}${unit}`;
     }
 
     function pushMissingSample() {
-        tempStore.push({ ts: Date.now(), celsius: null });
+        tempStore.push({ 
+            ts: Date.now(), 
+            celsius: null,
+            sensor1: null,
+            sensor2: null 
+        });
         displayLatest();
     }
 
-    // Fetch once (manual button) — still stores to the buffer
+    // Fetch temperature from server
     async function fetchTemperatureOnce() {
         try {
             const response = await fetch(`${BASE_URL}/temp`, { cache: 'no-store'});
@@ -79,30 +94,47 @@ document.addEventListener('DOMContentLoaded', () => {
 
             const data = await response.json();
 
-            // If your device sends Fahrenheit instead, convert here:
-            const celsius = fToC(parseFloat(data.average || data.sensor1 || data.sensor2));
-            //const celsius = parseFloat(data.average || data.sensor1 || data.sensor2);
+            // Get individual sensor values (may be undefined if sensor is off/unplugged)
+            const rawSensor1 = data.sensor1 !== undefined ? parseFloat(data.sensor1) : null;
+            const rawSensor2 = data.sensor2 !== undefined ? parseFloat(data.sensor2) : null;
+            const rawAverage = data.average !== undefined ? parseFloat(data.average) : null;
 
-            if (!Number.isFinite(celsius)) {
-                pushMissingSample();         // malformed number -> missing
-                return;
-            }
+            // Convert to Celsius for storage if server is sending Fahrenheit
+            const sensor1Celsius = rawSensor1 !== null && Number.isFinite(rawSensor1) 
+                ? (serverUnit === 'F' ? fToC(rawSensor1) : rawSensor1) 
+                : null;
+            
+            const sensor2Celsius = rawSensor2 !== null && Number.isFinite(rawSensor2)
+                ? (serverUnit === 'F' ? fToC(rawSensor2) : rawSensor2)
+                : null;
+            
+            const averageCelsius = rawAverage !== null && Number.isFinite(rawAverage)
+                ? (serverUnit === 'F' ? fToC(rawAverage) : rawAverage)
+                : null;
 
-            tempStore.push({ ts: Date.now(), celsius });
+            // Store in buffer (celsius = average for graphing)
+            tempStore.push({ 
+                ts: Date.now(), 
+                celsius: averageCelsius,
+                sensor1: rawSensor1,  // Store raw values for display
+                sensor2: rawSensor2
+            });
+            
+            // Display the raw sensor values
             displayLatest();
 
         } catch (err) {
-            // Network/timeout/parse error -> store "missing" instead of logging noise
+            // Network/timeout/parse error -> store "missing"
             pushMissingSample();
         }
     }
 
-    // Toggle °F/°C without changing stored data
+    // Toggle °F/°C - tells server to switch units
     function toggleUnit() {
-    // Determine next mode (0 = Celsius, 1 = Fahrenheit)
+        // Determine next mode (0 = Celsius, 1 = Fahrenheit)
         const newType = (degState === 'F') ? 0 : 1;
 
-    // Send request to server
+        // Send request to server
         fetch(`${BASE_URL}/toggle?tempType=${newType}`, { method: "POST" })
             .then(response => {
                 if (!response.ok) throw new Error("Failed to toggle unit on server");
@@ -111,9 +143,11 @@ document.addEventListener('DOMContentLoaded', () => {
             .then(data => {
                 // Update local state based on server response
                 if (data.temp_type === "0" || data.temp_type === 0) {
+                    serverUnit = 'C';
                     degState = 'C';
                     cfSwitchBtn.textContent = 'Switch to °F';
                 } else if (data.temp_type === "1" || data.temp_type === 1) {
+                    serverUnit = 'F';
                     degState = 'F';
                     cfSwitchBtn.textContent = 'Switch to °C';
                 }
@@ -152,5 +186,3 @@ document.addEventListener('DOMContentLoaded', () => {
         }
     });
 });
-
-
