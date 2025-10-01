@@ -25,8 +25,8 @@ HardwareManager::HardwareManager()
     cachedTemp1(-127.0),
     cachedTemp2(-127.0),
     tempType(1),
-    button1{GPIO_PIN25, false, 0, 100},
-    button2{GPIO_PIN26, false, 0, 100},
+    button1{GPIO_PIN25, false, 0, 20},
+    button2{GPIO_PIN26, false, 0, 20},
     buttonQueue(nullptr),
     lastOledUpdate(0),
     lastServerDataUpdate(0)

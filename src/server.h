@@ -15,8 +15,8 @@ void server_loop();
 void handle_OnConnect();
 void handle_request();
 void handle_tempRequest();
-void handle_sensorStatus();
-void handle_toggleSensor();
+void handle_status();
+void handle_toggle();
 void handle_NotFound();
 void handle_BadCommand();
 
