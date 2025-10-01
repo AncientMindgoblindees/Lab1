@@ -1,40 +1,72 @@
 // This is the "backend" for the webpage
 // It handles the communication with the server and updates the UI
 
-// Wait until the HTML has loaded
-document.addEventListener('DOMContentLoaded', function() {
-    // Reference to the temperature span
-    const tempDisplay = document.getElementById('temperature-value');
-
-    // Set a temperature variable here
-    const temperature = 75; // <-- you can change this number to test
-
-    // Display it on the page
-    tempDisplay.textContent = temperature + "°F";
-});
-
-
 // Wait until the page loads before running JS
 document.addEventListener('DOMContentLoaded', function() {
+    const cf_switch = document.getElementById('celsius_fahrenheit');
+    const tempButton = document.getElementById('get_temp_button');
+    const tempDisplay = document.getElementById('temperature_value');
     
-    // Get a reference to the button
-    const toggleButton = document.getElementById('toggle-button');
+    // State variables
+    let degState = "F";
+    let currentTemp = null;
+    let tempHist = []; // Array to hold temperature history, max size 300
+    
 
+    // Helper functions
     // Define the function we want to call
     async function getTemperature() {
         try {
-            const response = await fetch("http://192.168.1.1/data"); 
-            const data = await response.json(); // expect something like { "temp": 72 }
-            //document.getElementById("temperature-value").textContent = data.temp + "°F";
-            //tempDisplay.textContent = data.temp + "°F";
-            console.log(data);
+            const response = await fetch("http://192.168.1.1/temp/stream"); 
+            const data = await response.json();
+
+            console.log("Received data: ", data);
+            currentTemp = data.temp;
+
+
+            tempHist.push(currentTemp);
+
+            if(tempHist.length > 300){
+                tempHist.shift(); // Remove oldest entry to maintain size
+            }
+
+            updateTemperatureDisplay();
         } catch (error) {
             console.error("Error fetching temperature:", error);
         }
     }
 
+    function updateTemperatureDisplay() {
+        if (currentTemp === null) {
+            tempDisplay.textContent = "--";
+            return;
+        }
+
+        let displayValue = currentTemp;
+
+        if (degState === "C") {
+            displayValue = ((currentTemp - 32) * (5/9)).toFixed(2);
+            tempDisplay.textContent = displayValue + "°C";
+        } else {
+            displayValue = currentTemp.toFixed(2);
+            tempDisplay.textContent = displayValue + "°F";
+        }
+    }
+
+    async function convertTemperature() {
+        if (degState === "F") {
+            degState = "C";
+            cf_switch.textContent = "Switch to °F";
+        } else {
+            degState = "F";
+            cf_switch.textContent = "Switch to °C";
+        }
+        updateTemperatureDisplay();
+    }
+        
     // Attach the function to the button click
-    toggleButton.addEventListener('click', getTemperature);
+    tempButton.addEventListener('click', getTemperature);
+    cf_switch.addEventListener('click', convertTemperature);
 });
 
 
