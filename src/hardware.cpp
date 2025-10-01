@@ -176,7 +176,7 @@ void HardwareManager::update() {
 
 
 void HardwareManager::updateDisplay() {
-  if (!display) return;
+  /*if (!display) return;
   
   display->clearDisplay();
   display->setTextSize(1);
@@ -241,7 +241,53 @@ void HardwareManager::updateDisplay() {
     display->println("to activate");
   }
   
-  display->display();
+  display->display();*/
+  if (!display) return;
+
+    display->clearDisplay();
+    display->setTextSize(1);
+    display->setTextColor(SSD1306_WHITE);
+    display->setCursor(0, 0);
+
+    // Sensor 1
+    if (sensor1_active) {
+        float t1 = readSensor(1);
+        if (t1 == DEVICE_DISCONNECTED_C) {
+            display->println("Sensor 1 Error");
+            display->println("Check Conn.");
+        } else {
+            display->print("Sensor 1: ");
+            display->print(t1, 1);
+            if(tempType == 1) {
+            display->println(" F");
+            } else
+            display->println(" C");
+        }
+    } else {
+        display->println("Sensor 1 off");
+    }
+
+    display->println(); // small spacing
+
+    // Sensor 2
+    if (sensor2_active) {
+        float t2 = readSensor(2);
+        if (t2 == DEVICE_DISCONNECTED_C) {
+            display->println("Sensor 2 Error");
+            display->println("Check Conn.");
+        } else {
+            display->print("Sensor 2: ");
+            display->print(t2, 1);
+            if(tempType == 1) {
+            display->println(" F");
+            } else
+            display->println(" C");
+        }
+    } else {
+        display->println("Sensor 2 off");
+    }
+
+    display->display();
 }
 
 void HardwareManager::readSensorValues() {
@@ -258,7 +304,6 @@ void HardwareManager::readSensorValues() {
         cachedTemp2 = sensors->getTempC(sensor2Addr);
         return;
     }
-    // Celsius
    
 }
 
