@@ -1,5 +1,7 @@
 #include "server.h"
+#include "hardware.h"
 #include <WiFi.h>
+
 bool RequestFlag = false;
 const char* ssid = "ESP32TEST";
 const char* password = "12345678";
@@ -10,47 +12,164 @@ IPAddress gateway(192,168,1,1);
 IPAddress subnet(255,255,255,0);
 WebServer server(80);
 
+// Global pointer to hardware manager
+static HardwareManager* g_hwManager = nullptr;
 
-
-void server_setup() {
+void server_setup(HardwareManager* hwManager) {
+    // Store the hardware manager pointer
+    g_hwManager = hwManager;
+    
     WiFi.softAP(ssid, password);
     WiFi.softAPConfig(local_ip, gateway, subnet);
     delay(100);
+    
     server.on("/", handle_OnConnect);
     server.on("/data", HTTP_GET, handle_request);
-	server.on("/temp", HTTP_GET, handle_tempRequest);
+    server.on("/temp", HTTP_GET, handle_tempRequest);
+    server.on("/status", HTTP_GET, handle_status);
+    server.on("/toggle", HTTP_POST, handle_toggle);
     server.on("/%", HTTP_POST, handle_BadCommand);
+	server.on("/%", HTTP_GET, handle_BadCommand);
     server.onNotFound(handle_NotFound);
     server.begin();
-	Serial.println("HTTP server started");
+    Serial.println("HTTP server started");
 }
 
 void server_loop() {
-	server.handleClient();
-	if (RequestFlag) {
-		RequestFlag = false;
-	}
+    server.handleClient();
+    if (RequestFlag) {
+        RequestFlag = false;
+    }
 }
 
 void handle_OnConnect() {
-	server.send(200, "text/html", "<!DOCTYPE html><html><body><h1>ESP32 Web Server</h1><p>Backend Active</p></body></html>");
+    server.send(200, "text/html", 
+        "<!DOCTYPE html><html><body>"
+        "<h1>ESP32 Web Server</h1>"
+        "<p>Backend Active</p>"
+        "</body></html>");
 }
 
-void handle_request(){
-    //temp1
-    //temp2 
-	server.sendHeader("Access-Control-Allow-Origin", "*");
-	RequestFlag = true;
-    server.send(200, "application/json", "{\"Sending Data\":" + String(RequestFlag) + "}");
-	//server.send(200, "text/plain", "Sending Data");
+void handle_request() {
+    server.sendHeader("Access-Control-Allow-Origin", "*");
+    RequestFlag = true;
+    server.send(200, "application/json", 
+        "{\"Sending Data\":" + String(RequestFlag) + "}");
+}
+
+void handle_tempRequest() {
+    if (!g_hwManager) {
+        server.send(500, "application/json", 
+            "{\"error\":\"Hardware not initialized\"}");
+        return;
+    }
+    
+    server.sendHeader("Access-Control-Allow-Origin", "*");
+    
+    bool s1_active = g_hwManager->isSensor1Active();
+    bool s2_active = g_hwManager->isSensor2Active();
+    
+    String json = "{";
+    
+    if (s1_active) {
+        float temp1 = g_hwManager->getCachedSensor1Temp();
+        json += "\"sensor1\":" + String(temp1, 2);
+        if (s2_active) json += ",";
+    }
+    
+    if (s2_active) {
+        float temp2 = g_hwManager->getCachedSensor2Temp();
+        json += "\"sensor2\":" + String(temp2, 2);
+    }
+    
+    if (s1_active && s2_active) {
+        float temp1 = g_hwManager->getCachedSensor1Temp();
+        float temp2 = g_hwManager->getCachedSensor2Temp();
+        float avg = (temp1 + temp2) / 2.0;
+        json += ",\"average\":" + String(avg, 2);
+    }
+    
+    if (!s1_active && !s2_active) {
+        json += "\"message\":\"No sensors active\"";
+    }
+    
+    json += "}";
+    
+    server.send(200, "application/json", json);
+}
+
+void handle_status() {
+    if (!g_hwManager) {
+        server.send(500, "application/json", 
+            "{\"error\":\"Hardware not initialized\"}");
+        return;
+    }
+    
+    server.sendHeader("Access-Control-Allow-Origin", "*");
+    
+    String json = "{";
+    json += "\"sensor1_active\":" + String(g_hwManager->isSensor1Active() ? "true" : "false");
+    json += ",\"sensor2_active\":" + String(g_hwManager->isSensor2Active() ? "true" : "false");
+	json += ",\"tempType\":" + String(g_hwManager->getTempType());
+    json += "}";
+    
+    server.send(200, "application/json", json);
+}
+
+
+void handle_toggle() {
+    if (!g_hwManager) {
+        server.send(500, "application/json", 
+            "{\"error\":\"Hardware not initialized\"}");
+        return;
+    }
+    
+    server.sendHeader("Access-Control-Allow-Origin", "*");
+    
+    // Check for query parameters
+    if (server.hasArg("sensor")) {
+        String sensorNum = server.arg("sensor");
+        
+        if (sensorNum == "1") {
+            bool newState = !g_hwManager->isSensor1Active();
+            g_hwManager->setSensor1Active(newState);
+            server.send(200, "application/json", 
+                "{\"sensor1_active\":" + String(newState ? "true" : "false") + "}");
+        }
+        else if (sensorNum == "2") {
+            bool newState = !g_hwManager->isSensor2Active();
+            g_hwManager->setSensor2Active(newState);
+            server.send(200, "application/json", 
+                "{\"sensor2_active\":" + String(newState ? "true" : "false") + "}");
+        }
+        else {
+            server.send(400, "application/json", 
+                "{\"error\":\"Invalid sensor number. Use 1 or 2\"}");
+        }
+    }
+	else if(server.hasArg("tempType")){
+		String type = server.arg("tempType");
+		if(type == "0" || type == "1"){
+			g_hwManager->setTempType(type.toInt());
+			server.send(200, "application/json",
+				"{\"temp_type\":" + String(type) + "}");
+		} else {
+			server.send(400, "application/json",
+				"{\"error\":\"Invalid temp type. Use 0 (C) or 1 (F)\"}");
+		}
+	}
+    else {
+        server.send(400, "application/json", 
+            "{\"error\":\"Missing sensor parameter\"}");
+    }
 }
 
 void handle_NotFound() {
-	server.send(404, "text/plain", "Not found");
+    server.send(404, "text/plain", "Not found");
 }
 
 void handle_BadCommand() {
-	server.send(400, "text/plain", "Bad Request");
+    server.send(400, "text/plain", "Bad Request");
 }
 
 void handle_tempRequest() {
