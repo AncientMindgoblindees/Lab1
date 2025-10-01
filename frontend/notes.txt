@@ -1,4 +1,6 @@
-The next step is to ensure that the temperature data receieved from the uC is appended directly to the webpge
-    ^ Right now, the data is pushed into a string and then displayed to the webpage, but I would rather have 
-      the raw data calculated within the webpage formatting
+Requirements:
+
+1. A button to virtually turn the box on/off
+2. A button to virtually "press the button" on the box
+3. A graph of the past 300 temperature recordings
 
