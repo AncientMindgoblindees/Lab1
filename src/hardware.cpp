@@ -1,6 +1,6 @@
 #include "hardware.h"
 #include <Wire.h>
-
+#define DEVICE_DISCONNECTED_F -196.6
 // Global pointer for ISR access
 HardwareManager* g_hardwareManager = nullptr;
 // ISR wrapper functions
@@ -172,7 +172,14 @@ void HardwareManager::update() {
     readSensorValues();
   }
 }
-
+bool HardwareManager::isTempValid(float temp) const {
+  // Check if temperature is valid (not disconnected)
+  if (tempType == 1) { // Fahrenheit
+    return (temp > DEVICE_DISCONNECTED_F + 1.0); // Add small margin
+  } else { // Celsius
+    return (temp > DEVICE_DISCONNECTED_C + 1.0); // Add small margin
+  }
+}
 
 
 void HardwareManager::updateDisplay() {
@@ -244,92 +251,76 @@ void HardwareManager::updateDisplay() {
   display->display();*/
   if (!display) return;
 
-    display->clearDisplay();
-    display->setTextSize(1);
-    display->setTextColor(SSD1306_WHITE);
-    display->setCursor(0, 0);
+  display->clearDisplay();
+  display->setTextSize(1);
+  display->setTextColor(SSD1306_WHITE);
+  display->setCursor(0, 0);
 
-    // Sensor 1
-    if (sensor1_active) {
-        float t1 = readSensor(1);
-        if (t1 == DEVICE_DISCONNECTED_C) {
-            display->println("Sensor 1 Error");
-            display->println("Check Conn.");
-        } else {
-            display->print("Sensor 1: ");
-            display->print(t1, 1);
-            if(tempType == 1) {
-            display->println(" F");
-            } else
-            display->println(" C");
-        }
+  // Sensor 1
+  if (sensor1_active) {
+    float t1 = readSensor(1);
+    if (!isTempValid(t1)) {
+      display->println("Sensor 1 Error");
+      display->println("Check Conn.");
     } else {
-        display->println("Sensor 1 off");
+      display->print("Sensor 1: ");
+      display->print(t1, 1);
+      display->println(tempType == 1 ? " F" : " C");
     }
+  } else {
+    display->println("Sensor 1 off");
+  }
 
-    display->println(); // small spacing
+  display->println(); // small spacing
 
-    // Sensor 2
-    if (sensor2_active) {
-        float t2 = readSensor(2);
-        if (t2 == DEVICE_DISCONNECTED_C) {
-            display->println("Sensor 2 Error");
-            display->println("Check Conn.");
-        } else {
-            display->print("Sensor 2: ");
-            display->print(t2, 1);
-            if(tempType == 1) {
-            display->println(" F");
-            } else
-            display->println(" C");
-        }
+  // Sensor 2
+  if (sensor2_active) {
+    float t2 = readSensor(2);
+    if (!isTempValid(t2)) {
+      display->println("Sensor 2 Error");
+      display->println("Check Conn.");
     } else {
-        display->println("Sensor 2 off");
+      display->print("Sensor 2: ");
+      display->print(t2, 1);
+      display->println(tempType == 1 ? " F" : " C");
     }
+  } else {
+    display->println("Sensor 2 off");
+  }
 
-    display->display();
+  display->display();
 }
 
 void HardwareManager::readSensorValues() {
-    sensors->requestTemperatures(); // Always request temps
+  sensors->requestTemperatures(); // Always request temps
 
-    // Always update cache, regardless of active flags
-    if(tempType == 1) { // Fahrenheit
-        cachedTemp1 = sensors->getTempF(sensor1Addr);
-        cachedTemp2 = sensors->getTempF(sensor2Addr);
-        return;
-    }
-    else{
-        cachedTemp1 = sensors->getTempC(sensor1Addr);
-        cachedTemp2 = sensors->getTempC(sensor2Addr);
-        return;
-    }
-   
+  // Always update cache, regardless of active flags
+  if(tempType == 1) { // Fahrenheit
+    cachedTemp1 = sensors->getTempF(sensor1Addr);
+    cachedTemp2 = sensors->getTempF(sensor2Addr);
+  } else { // Celsius
+    cachedTemp1 = sensors->getTempC(sensor1Addr);
+    cachedTemp2 = sensors->getTempC(sensor2Addr);
+  }
 }
 
 float HardwareManager::readSensor(int sensorNum) {
   // Return cached values instead of querying sensors directly
-  if (sensorNum == 1 && sensor1_active) {
+  if (sensorNum == 1) {
     return cachedTemp1;
-  } else if (sensorNum == 2 && sensor2_active) {
+  } else if (sensorNum == 2) {
     return cachedTemp2;
   }
-  return -127.0;
+  return tempType == 1 ? DEVICE_DISCONNECTED_F : DEVICE_DISCONNECTED_C;
 }
 
 void HardwareManager::handleButton1Press() {
-  //unsigned long currentTime = millis();
-  
-  // Check if enough time has passed since last trigger
-  //if (currentTime - button1.lastDebounceTime > button1.debounceDelay) {
-   // button1.lastDebounceTime = currentTime;
     sensor1_active = !sensor1_active;
     
     static const int btn = GPIO_PIN25;
     BaseType_t xHigherPriorityTaskWoken = pdFALSE; 
     xQueueSendFromISR(buttonQueue, &btn, &xHigherPriorityTaskWoken);
     if (xHigherPriorityTaskWoken) portYIELD_FROM_ISR();
-  //}
 }
 
 void HardwareManager::handleButton2Press() {

@@ -35,7 +35,7 @@ public:
   bool isSensor2Active() const { return sensor2_active; }
   void setSensor1Active(bool active) { sensor1_active = active; }
   void setSensor2Active(bool active) { sensor2_active = active; }
-  
+    bool isTempValid(float temp) const;
   // Queue access for ISR
   QueueHandle_t getButtonQueue() { return buttonQueue; }
   float getCachedSensor1Temp() const { return cachedTemp1; }
