@@ -41,7 +41,7 @@ public:
   float getCachedSensor1Temp() const { return cachedTemp1; }
   float getCachedSensor2Temp() const { return cachedTemp2; }
   int getTempType() const { return tempType; }
-  void toggleTempType() { tempType = (tempType == 0) ? 1 : 0; } // Toggle between 0 and 1
+  void setTempType(int type) { tempType = type; } // 0 = C, 1 = F
 private:
   // Display management
   void updateDisplay();

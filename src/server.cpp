@@ -26,9 +26,10 @@ void server_setup(HardwareManager* hwManager) {
     server.on("/", handle_OnConnect);
     server.on("/data", HTTP_GET, handle_request);
     server.on("/temp", HTTP_GET, handle_tempRequest);
-    server.on("/status", HTTP_GET, handle_sensorStatus);
-    server.on("/toggle", HTTP_POST, handle_toggleSensor);
+    server.on("/status", HTTP_GET, handle_status);
+    server.on("/toggle", HTTP_POST, handle_toggle);
     server.on("/%", HTTP_POST, handle_BadCommand);
+	server.on("/%", HTTP_GET, handle_BadCommand);
     server.onNotFound(handle_NotFound);
     server.begin();
     Serial.println("HTTP server started");
@@ -71,19 +72,19 @@ void handle_tempRequest() {
     String json = "{";
     
     if (s1_active) {
-        float temp1 = g_hwManager->readSensor(1);
+        float temp1 = g_hwManager->getCachedSensor1Temp();
         json += "\"sensor1\":" + String(temp1, 2);
         if (s2_active) json += ",";
     }
     
     if (s2_active) {
-        float temp2 = g_hwManager->readSensor(2);
+        float temp2 = g_hwManager->getCachedSensor2Temp();
         json += "\"sensor2\":" + String(temp2, 2);
     }
     
     if (s1_active && s2_active) {
-        float temp1 = g_hwManager->readSensor(1);
-        float temp2 = g_hwManager->readSensor(2);
+        float temp1 = g_hwManager->getCachedSensor1Temp();
+        float temp2 = g_hwManager->getCachedSensor2Temp();
         float avg = (temp1 + temp2) / 2.0;
         json += ",\"average\":" + String(avg, 2);
     }
@@ -97,7 +98,7 @@ void handle_tempRequest() {
     server.send(200, "application/json", json);
 }
 
-void handle_sensorStatus() {
+void handle_status() {
     if (!g_hwManager) {
         server.send(500, "application/json", 
             "{\"error\":\"Hardware not initialized\"}");
@@ -109,12 +110,14 @@ void handle_sensorStatus() {
     String json = "{";
     json += "\"sensor1_active\":" + String(g_hwManager->isSensor1Active() ? "true" : "false");
     json += ",\"sensor2_active\":" + String(g_hwManager->isSensor2Active() ? "true" : "false");
+	json += ",\"tempType\":" + String(g_hwManager->getTempType());
     json += "}";
     
     server.send(200, "application/json", json);
 }
 
-void handle_toggleSensor() {
+
+void handle_toggle() {
     if (!g_hwManager) {
         server.send(500, "application/json", 
             "{\"error\":\"Hardware not initialized\"}");
@@ -144,6 +147,17 @@ void handle_toggleSensor() {
                 "{\"error\":\"Invalid sensor number. Use 1 or 2\"}");
         }
     }
+	else if(server.hasArg("tempType")){
+		String type = server.arg("tempType");
+		if(type == "0" || type == "1"){
+			g_hwManager->setTempType(type.toInt());
+			server.send(200, "application/json",
+				"{\"temp_type\":" + String(type) + "}");
+		} else {
+			server.send(400, "application/json",
+				"{\"error\":\"Invalid temp type. Use 0 (C) or 1 (F)\"}");
+		}
+	}
     else {
         server.send(400, "application/json", 
             "{\"error\":\"Missing sensor parameter\"}");
