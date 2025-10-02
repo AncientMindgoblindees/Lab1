@@ -13,13 +13,11 @@ document.addEventListener('DOMContentLoaded', () => {
     const sensor2Display = document.getElementById('sensor2_value');
 
     // ======== State ========
-    // Track what unit the SERVER is currently sending
-    let serverUnit = 'F'; // Will be updated from server on load
-    
-    // Track what unit the UI should display (matches serverUnit)
-    let degState = 'F'; // Will be updated from server on load
+    // Will be updated from server on load
+    let serverState = 'F';
+    let clientState = 'F';
 
-    // Function to sync state with server
+    // Helper function to sync the local state and server state
     async function syncStateWithServer() {
         try {
             const response = await fetch(`${BASE_URL}/status`, { cache: 'no-store' });
@@ -29,12 +27,12 @@ document.addEventListener('DOMContentLoaded', () => {
             
             // Update state based on server's tempType (0 = C, 1 = F)
             if (data.tempType === 0 || data.tempType === "0") {
-                serverUnit = 'C';
-                degState = 'C';
+                serverState = 'C';
+                clientState = 'C';
                 cfSwitchBtn.textContent = 'Switch to °F';
             } else if (data.tempType === 1 || data.tempType === "1") {
-                serverUnit = 'F';
-                degState = 'F';
+                serverState = 'F';
+                clientState = 'F';
                 cfSwitchBtn.textContent = 'Switch to °C';
             }
         } catch (err) {
@@ -42,27 +40,29 @@ document.addEventListener('DOMContentLoaded', () => {
         }
     }
 
-    // Fixed-size circular buffer for { ts, celsius }
-    // NOTE: Always stores temperature in Celsius regardless of what server sends
+    // Fixed-size ring buffer for { ts, celsius }
+    // Temperatures stored in tempStore are always converted to Celsius for consistency
     const tempStore = {
         buf: new Array(MAX_POINTS),
         start: 0,        // index of oldest element
-        size: 0,         // number of valid elements (<= MAX_POINTS)
-        push(sample) {   // sample: { ts: number (ms), celsius: number }
+        size: 0,         // number of elements (<= MAX_POINTS)
+        push(sample) {   // sample format = { ts: number (ms), celsius: number }
             if (this.size < MAX_POINTS) {
                 this.buf[(this.start + this.size) % MAX_POINTS] = sample;
                 this.size++;
             } else {
-                // Overwrite oldest (ring buffer)
+                // Overwrite oldest (i.e. ring buffer)
                 this.buf[this.start] = sample;
                 this.start = (this.start + 1) % MAX_POINTS;
             }
         },
+        // Get latest sample or null if empty
         latest() {
             if (this.size === 0) return null;
             const idx = (this.start + this.size - 1) % MAX_POINTS;
             return this.buf[idx];
         },
+        // Get all samples in chronological order
         toArray() {
             const out = [];
             for (let i = 0; i < this.size; i++) {
@@ -72,8 +72,8 @@ document.addEventListener('DOMContentLoaded', () => {
         }
     };
 
-    // Expose for quick debugging in console
-    window.tempStore = tempStore;
+    // This line allows you to use tempStore methods from the console for testing
+    //window.tempStore = tempStore;
 
     // ======== Helpers ========
     const fToC = f => (f - 32) * (5/9);
@@ -81,18 +81,34 @@ document.addEventListener('DOMContentLoaded', () => {
 
     function displayLatest() {
         const last = tempStore.latest();
-        const unit = serverUnit === 'F' ? '°F' : '°C';
+        const unit = serverState === 'F' ? '°F' : '°C';
         
-        if (!last || !last.sensor1 || !last.sensor2) {
-            // Handle missing data
-            sensor1Display.textContent = last?.sensor1 ? `${last.sensor1.toFixed(2)}${unit}` : '--';
-            sensor2Display.textContent = last?.sensor2 ? `${last.sensor2.toFixed(2)}${unit}` : '--';
-            return;
+        // Check for unplugged sensors (-196.6°F or -127.0°C)
+        const sensor1Unplugged = last.rawSensor1 !== null && 
+       ((serverState === 'F' && Math.abs(last.rawSensor1 - (-196.6)) < 0.1) || 
+        (serverState === 'C' && Math.abs(last.rawSensor1 - (-127.0)) < 0.1));
+        
+        const sensor2Unplugged = last.rawSensor2 !== null && 
+       ((serverState === 'F' && Math.abs(last.rawSensor2 - (-196.6)) < 0.1) || 
+        (serverState === 'C' && Math.abs(last.rawSensor2 - (-127.0)) < 0.1));    
+        
+        // Display sensor 1
+        if (sensor1Unplugged) {
+            sensor1Display.textContent = 'unplugged sensor';
+        } else if (!last || last.sensor1 === null) {
+            sensor1Display.textContent = 'no data available';
+        } else {
+            sensor1Display.textContent = `${last.sensor1.toFixed(2)}${unit}`;
         }
         
-        // Display both sensor values
-        sensor1Display.textContent = `${last.sensor1.toFixed(2)}${unit}`;
-        sensor2Display.textContent = `${last.sensor2.toFixed(2)}${unit}`;
+        // Display sensor 2
+        if (sensor2Unplugged) {
+            sensor2Display.textContent = 'unplugged sensor';
+        } else if (!last || last.sensor2 === null) {
+            sensor2Display.textContent = 'no data available';
+        } else {
+            sensor2Display.textContent = `${last.sensor2.toFixed(2)}${unit}`;
+        }
     }
 
     function pushMissingSample() {
@@ -100,7 +116,9 @@ document.addEventListener('DOMContentLoaded', () => {
             ts: Date.now(), 
             celsius: null,
             sensor1: null,
-            sensor2: null 
+            sensor2: null,
+            sensor1Celsius: null,
+            sensor2Celsius: null
         });
         displayLatest();
     }
@@ -122,13 +140,22 @@ document.addEventListener('DOMContentLoaded', () => {
             const rawSensor2 = data.sensor2 !== undefined ? parseFloat(data.sensor2) : null;
             const rawAverage = data.average !== undefined ? parseFloat(data.average) : null;
 
-            // Convert to Celsius for storage if server is sending Fahrenheit
-            const sensor1Celsius = rawSensor1 !== null && Number.isFinite(rawSensor1) 
-                ? (serverUnit === 'F' ? fToC(rawSensor1) : rawSensor1) 
+            // Check for unplugged sensors (-196.6°F or -127.0°C)
+            const sensor1Unplugged = rawSensor1 !== null && 
+                ((serverState === 'F' && Math.abs(rawSensor1 - (-196.6)) < 0.1) || 
+                 (serverState === 'C' && Math.abs(rawSensor1 - (-127.0)) < 0.1));
+            
+            const sensor2Unplugged = rawSensor2 !== null && 
+                ((serverState === 'F' && Math.abs(rawSensor2 - (-196.6)) < 0.1) || 
+                 (serverState === 'C' && Math.abs(rawSensor2 - (-127.0)) < 0.1));
+
+            // Convert to celsius for tempStore if data is in fahrenheit
+            const sensor1Celsius = !sensor1Unplugged && rawSensor1 !== null && Number.isFinite(rawSensor1) 
+                ? (serverState === 'F' ? fToC(rawSensor1) : rawSensor1) 
                 : null;
             
-            const sensor2Celsius = rawSensor2 !== null && Number.isFinite(rawSensor2)
-                ? (serverUnit === 'F' ? fToC(rawSensor2) : rawSensor2)
+            const sensor2Celsius = !sensor2Unplugged && rawSensor2 !== null && Number.isFinite(rawSensor2)
+                ? (serverState === 'F' ? fToC(rawSensor2) : rawSensor2)
                 : null;
             
             // Calculate average for graphing:
@@ -138,21 +165,23 @@ document.addEventListener('DOMContentLoaded', () => {
             // 4. If neither active, null
             let averageCelsius = null;
             if (rawAverage !== null && Number.isFinite(rawAverage)) {
-                averageCelsius = serverUnit === 'F' ? fToC(rawAverage) : rawAverage;
+                averageCelsius = serverState === 'F' ? fToC(rawAverage) : rawAverage;
             } else if (sensor1Celsius !== null && sensor2Celsius !== null) {
                 averageCelsius = (sensor1Celsius + sensor2Celsius) / 2;
             } else if (sensor1Celsius !== null) {
-                averageCelsius = sensor1Celsius;
+                averageCelsius = null; // Change to sensor1Celsius if you want to show single sensor as average
             } else if (sensor2Celsius !== null) {
-                averageCelsius = sensor2Celsius;
+                averageCelsius = null; // Change to sensor2Celsius if you want to show single sensor as average
             }
 
-            // Store in buffer (celsius = average for graphing)
+            // Store in buffer (celsius = average for backward compatibility)
             tempStore.push({ 
                 ts: Date.now(), 
                 celsius: averageCelsius,
                 sensor1: rawSensor1,  // Store raw values for display
-                sensor2: rawSensor2
+                sensor2: rawSensor2,
+                sensor1Celsius: sensor1Celsius,  // Store Celsius for graphing
+                sensor2Celsius: sensor2Celsius   // Store Celsius for graphing
             });
             
             // Display the raw sensor values
@@ -167,7 +196,7 @@ document.addEventListener('DOMContentLoaded', () => {
     // Toggle °F/°C - tells server to switch units
     function toggleUnit() {
         // Determine next mode (0 = Celsius, 1 = Fahrenheit)
-        const newType = (degState === 'F') ? 0 : 1;
+        const newType = (clientState === 'F') ? 0 : 1;
 
         // Send request to server
         fetch(`${BASE_URL}/toggle?tempType=${newType}`, { method: "POST" })
@@ -177,13 +206,13 @@ document.addEventListener('DOMContentLoaded', () => {
             })
             .then(data => {
                 // Update local state based on server response
-                if (data.temp_type === "0" || data.temp_type === 0) {
-                    serverUnit = 'C';
-                    degState = 'C';
+                if (data.tempType === "0" || data.tempType === 0) {
+                    serverState = 'C';
+                    clientState = 'C';
                     cfSwitchBtn.textContent = 'Switch to °F';
-                } else if (data.temp_type === "1" || data.temp_type === 1) {
-                    serverUnit = 'F';
-                    degState = 'F';
+                } else if (data.tempType === "1" || data.tempType === 1) {
+                    serverState = 'F';
+                    clientState = 'F';
                     cfSwitchBtn.textContent = 'Switch to °C';
                 }
                 displayLatest();
@@ -209,8 +238,8 @@ document.addEventListener('DOMContentLoaded', () => {
         // Immediately request once on page load:
         fetchTemperatureOnce();
 
-        // Then poll every second to build the rolling 300-second window
-        const timerId = setInterval(() => {
+        // Then fetch every second to fill up tempStore and update display
+        let timerId = setInterval(() => {
             fetchTemperatureOnce();
             drawGraph();
         }, 1000);
@@ -220,9 +249,10 @@ document.addEventListener('DOMContentLoaded', () => {
             if (document.hidden) {
                 clearInterval(timerId);
             } else {
-                // Kick one fetch on return, then resume polling
+                // Fetch temperature once on return, then resume polling every second
                 fetchTemperatureOnce();
-                setInterval(() => {
+                drawGraph();
+                timerId = setInterval(() => {
                     fetchTemperatureOnce();
                     drawGraph();
                 }, 1000);
@@ -258,9 +288,9 @@ document.addEventListener('DOMContentLoaded', () => {
         const height = canvas.height - margin.top - margin.bottom;
 
         // Temperature range based on current unit
-        const minTemp = degState === 'F' ? 50 : 10;
-        const maxTemp = degState === 'F' ? 122 : 50;
-        const unit = degState === 'F' ? '°F' : '°C';
+        const minTemp = clientState === 'F' ? 50 : 10;
+        const maxTemp = clientState === 'F' ? 122 : 50;
+        const unit = clientState === 'F' ? '°F' : '°C';
 
         // Helper functions
         function tempToY(celsius) {
@@ -302,10 +332,10 @@ document.addEventListener('DOMContentLoaded', () => {
         ctx.strokeStyle = '#e0e0e0';
         ctx.lineWidth = 1;
 
-        const tempStep = degState === 'F' ? 20 : 10;
+        const tempStep = clientState === 'F' ? 20 : 10;
         for (let temp = minTemp; temp <= maxTemp; temp += tempStep) {
             // Convert display temp back to celsius for Y calculation
-            const celsiusForY = degState === 'F' ? fToC(temp) : temp;
+            const celsiusForY = clientState === 'F' ? fToC(temp) : temp;
             const y = tempToY(celsiusForY);
             
             if (y !== null) {
@@ -352,8 +382,67 @@ document.addEventListener('DOMContentLoaded', () => {
         ctx.font = 'bold 14px Arial';
         ctx.fillText('Seconds Ago', canvas.width / 2, canvas.height - 5);
 
-        // Draw temperature line
+        // Draw temperature lines for both sensors and average
+        // Sensor 1 - Blue line
+        drawSensorLine(dataPoints, now, '#2196F3', 'sensor1Celsius');
+        
+        // Sensor 2 - Orange line
+        drawSensorLine(dataPoints, now, '#FF9800', 'sensor2Celsius');
+        
+        // Average - Green line (only when both sensors active)
+        drawSensorLine(dataPoints, now, '#4CAF50', 'celsius');
+
+        // Draw legend
+        const legendX = margin.left + 20;
+        const legendY = margin.top + 20;
+        
+        // Sensor 1
         ctx.strokeStyle = '#2196F3';
+        ctx.lineWidth = 2;
+        ctx.beginPath();
+        ctx.moveTo(legendX, legendY);
+        ctx.lineTo(legendX + 30, legendY);
+        ctx.stroke();
+        ctx.fillStyle = '#333';
+        ctx.font = '12px Arial';
+        ctx.textAlign = 'left';
+        ctx.fillText('Sensor 1', legendX + 35, legendY + 4);
+        
+        // Sensor 2
+        ctx.strokeStyle = '#FF9800';
+        ctx.beginPath();
+        ctx.moveTo(legendX, legendY + 20);
+        ctx.lineTo(legendX + 30, legendY + 20);
+        ctx.stroke();
+        ctx.fillText('Sensor 2', legendX + 35, legendY + 24);
+        
+        // Average
+        ctx.strokeStyle = '#4CAF50';
+        ctx.beginPath();
+        ctx.moveTo(legendX, legendY + 40);
+        ctx.lineTo(legendX + 30, legendY + 40);
+        ctx.stroke();
+        ctx.fillText('Average', legendX + 35, legendY + 44);
+    }
+
+    // Helper function to draw a single sensor line
+    function drawSensorLine(dataPoints, now, color, sensorField) {
+        const margin = { top: 30, right: 30, bottom: 50, left: 60 };
+        const width = canvas.width - margin.left - margin.right;
+        const height = canvas.height - margin.top - margin.bottom;
+
+        function tempToY(celsius) {
+            if (celsius < 10 || celsius > 50) return null;
+            const ratio = (celsius - 10) / (50 - 10);
+            return margin.top + height - (ratio * height);
+        }
+
+        function secondsToX(secondsAgo) {
+            const ratio = (300 - secondsAgo) / 300;
+            return margin.left + (ratio * width);
+        }
+
+        ctx.strokeStyle = color;
         ctx.lineWidth = 2;
         ctx.lineJoin = 'round';
 
@@ -363,21 +452,20 @@ document.addEventListener('DOMContentLoaded', () => {
             const point = dataPoints[i];
             const secondsAgo = Math.floor((now - point.ts) / 1000);
             
-            // Skip if beyond 300 seconds
             if (secondsAgo > 300) continue;
             
             const x = secondsToX(secondsAgo);
+            const celsius = point[sensorField];
 
             // Check if point is valid (not null and in range)
-            const isValid = point.celsius !== null && 
-                          point.celsius >= 10 && 
-                          point.celsius <= 50;
+            const isValid = celsius !== null && 
+                          celsius >= 10 && 
+                          celsius <= 50;
 
             if (isValid) {
-                const y = tempToY(point.celsius);
+                const y = tempToY(celsius);
                 
                 if (lastValidPoint !== null) {
-                    // Draw line from last valid point to this one
                     ctx.beginPath();
                     ctx.moveTo(lastValidPoint.x, lastValidPoint.y);
                     ctx.lineTo(x, y);
@@ -385,14 +473,13 @@ document.addEventListener('DOMContentLoaded', () => {
                 }
 
                 // Draw point
-                ctx.fillStyle = '#2196F3';
+                ctx.fillStyle = color;
                 ctx.beginPath();
                 ctx.arc(x, y, 2, 0, Math.PI * 2);
                 ctx.fill();
 
                 lastValidPoint = { x, y };
             } else {
-                // Invalid point (null or off-scale) - creates gap
                 lastValidPoint = null;
             }
         }
