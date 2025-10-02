@@ -10,8 +10,6 @@
 struct Button {
   const uint8_t PIN;
   bool pressed;
-  unsigned long lastDebounceTime;
-  unsigned long debounceDelay;
 };
 
 class HardwareManager {
@@ -36,19 +34,22 @@ public:
   void setSensor1Active(bool active) { sensor1_active = active; }
   void setSensor2Active(bool active) { sensor2_active = active; }
   bool isTempValid(float temp) const;
-
+  void rescanSensors();
   // Queue access for ISR
   QueueHandle_t getButtonQueue() { return buttonQueue; }
   float getCachedSensor1Temp() const { return cachedTemp1; }
   float getCachedSensor2Temp() const { return cachedTemp2; }
   int getTempType() const { return tempType; }
-  void setTempType(int type) { tempType = type; } // 0 = C, 1 = F
+  void setTempType(int type) { tempType = type;
+  tempChange = true;
+  } // 0 = C, 1 = F
+  
 private:
   // Display management
   void updateDisplay();
   void initializeDisplay();
   void scanI2CBus();
-  
+  bool hasSensorAddress(const DeviceAddress addr) const;
   // Sensor management
   void initializeSensors();
   void readSensorValues();
@@ -67,6 +68,8 @@ private:
   DeviceAddress sensor2Addr;
   bool sensor1_active;
   bool sensor2_active;
+  bool tempChange;
+  uint32_t lastSensorScan;
   volatile float cachedTemp1;
   volatile float cachedTemp2;
   volatile int tempType;
@@ -74,7 +77,7 @@ private:
   Button button1;
   Button button2;
   QueueHandle_t buttonQueue;
-  
+  static const uint16_t SENSOR_RESCAN_INTERVAL = 5000; // 2 seconds when inactive
   // Timing
   uint32_t lastOledUpdate;
   uint32_t lastServerDataUpdate;

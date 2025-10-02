@@ -24,12 +24,14 @@ HardwareManager::HardwareManager()
     sensor2_active(false),
     cachedTemp1(-127.0),
     cachedTemp2(-127.0),
-    tempType(1),
-    button1{GPIO_PIN25, false, 0, 10},
-    button2{GPIO_PIN26, false, 0, 10},
+    tempType(0),
+    button1{GPIO_PIN25, false},
+    button2{GPIO_PIN26, false},
     buttonQueue(nullptr),
     lastOledUpdate(0),
-    lastServerDataUpdate(0)
+    lastServerDataUpdate(0),
+    lastSensorScan(0),
+    tempChange(false)
 {
   // Set global pointer for ISR access
   g_hardwareManager = this;
@@ -164,17 +166,30 @@ void HardwareManager::update() {
   
   // Get current time once to avoid multiple millis() calls
   uint32_t current = millis();
-  
+  // Update sensor readings periodically
+  if(tempChange || current - lastServerDataUpdate > SENSOR_UPDATE_INTERVAL) {
+    lastServerDataUpdate = current;
+    tempChange = false;
+    readSensorValues();
+  }
   // Update display immediately if button was pressed OR periodically
   if(buttonPressed || (current - lastOledUpdate > OLED_UPDATE_INTERVAL)) {
     lastOledUpdate = current;
     updateDisplay();
   }
   
-  // Update sensor readings periodically
-  if(current - lastServerDataUpdate > SENSOR_UPDATE_INTERVAL) {
-    lastServerDataUpdate = current;
-    readSensorValues();
+  
+
+  // Auto-rescan for new sensors only when both are inactive
+  bool needsRescan = (!sensor1_active && !sensor2_active) ||
+                   (!sensor1_active && !hasSensorAddress(sensor1Addr)) ||
+                   (!sensor2_active && !hasSensorAddress(sensor2Addr));
+
+  if(needsRescan) {
+    if(current - lastSensorScan > SENSOR_RESCAN_INTERVAL) {
+      lastSensorScan = current;
+      rescanSensors();
+    }
   }
 }
 bool HardwareManager::isTempValid(float temp) const {
@@ -188,72 +203,6 @@ bool HardwareManager::isTempValid(float temp) const {
 
 
 void HardwareManager::updateDisplay() {
-  /*if (!display) return;
-  
-  display->clearDisplay();
-  display->setTextSize(1);
-  display->setTextColor(SSD1306_WHITE);
-  display->setCursor(0, 0);
-  
-  if (sensor1_active && sensor2_active) {
-    // Both sensors active - show average
-    float t1 = readSensor(1);
-    float t2 = readSensor(2);
-    if (t1 == DEVICE_DISCONNECTED_C || t2 == DEVICE_DISCONNECTED_C) {
-      display->println("Sensor Error");
-      display->println("Check Conn.");
-    } else {
-      float avg = (t1 + t2) / 2.0;
-      display->println("Both Sensors:");
-      display->print("Avg: ");
-      display->print(avg, 1);
-      if(tempType == 1) {
-        display->println(" F");
-      } else
-        display->println(" C");
-    }
-  }
-  else if (sensor1_active) {
-    // Only sensor 1 active
-    float temp1 = readSensor(1);
-    if(temp1 == DEVICE_DISCONNECTED_C) {
-      display->println("Sensor 1 Error");
-      display->println("Check Conn.");
-    } else {
-      display->println("Sensor 1:");
-      display->print("Temp: ");
-      display->print(temp1, 1);
-      if(tempType == 1) {
-        display->println(" F");
-      } else
-        display->println(" C");
-    }
-  } 
-  else if (sensor2_active) {
-    // Only sensor 2 active
-    float temp2 = readSensor(2);
-    if (temp2 == DEVICE_DISCONNECTED_C) {
-      display->println("Sensor 2 Error");
-      display->println("Check Conn.");
-    } else {
-      display->println("Sensor 2:");
-      display->print("Temp: ");
-      display->print(temp2, 1);
-      if(tempType == 1) {
-        display->println(" F");
-      } else
-        display->println(" C");
-    }
-  } 
-  else {
-    // No sensors active
-    display->println("No Sensors");
-    display->println("Active");
-    display->println("Press button");
-    display->println("to activate");
-  }
-  
-  display->display();*/
   if (!display) return;
 
   display->clearDisplay();
@@ -336,3 +285,59 @@ void HardwareManager::handleButton2Press() {
     if (xHigherPriorityTaskWoken) portYIELD_FROM_ISR();
 }
 
+void HardwareManager::rescanSensors() {
+  Serial.println("\n=== Rescanning Temperature Sensors ===");
+  
+  // Re-initialize the sensor library
+  sensors->begin();
+  
+  int deviceCount = sensors->getDeviceCount();
+  Serial.print("Found ");
+  Serial.print(deviceCount);
+  Serial.println(" temperature sensor(s)");
+  
+  // Store previous states
+  bool prevSensor1Active = sensor1_active;
+  bool prevSensor2Active = sensor2_active;
+  
+  // Try to get sensor 1 address
+  if (sensors->getAddress(sensor1Addr, 0)) {
+    Serial.print("Sensor 1: Found at index 0 - Address: ");
+    for (uint8_t i = 0; i < 8; i++) {
+      if (sensor1Addr[i] < 16) Serial.print("0");
+      Serial.print(sensor1Addr[i], HEX);
+    }
+    Serial.println();
+    sensor1_active = prevSensor1Active;
+  } else {
+    Serial.println("Sensor 1: Not found");
+    sensor1_active = false;
+  }
+  
+  // Try to get sensor 2 address
+  if (sensors->getAddress(sensor2Addr, 1)) {
+    Serial.print("Sensor 2: Found at index 1 - Address: ");
+    for (uint8_t i = 0; i < 8; i++) {
+      if (sensor2Addr[i] < 16) Serial.print("0");
+      Serial.print(sensor2Addr[i], HEX);
+    }
+    Serial.println();
+    sensor2_active = prevSensor2Active;
+  } else {
+    Serial.println("Sensor 2: Not found");
+    sensor2_active = false;
+  }
+  
+  Serial.println("Rescan complete!");
+  Serial.println("=====================================\n");
+  
+  updateDisplay();
+}
+// In hardware.cpp, add this helper function:
+bool HardwareManager::hasSensorAddress(const DeviceAddress addr) const {
+  // Check if address is all zeros (invalid)
+  for(uint8_t i = 0; i < 8; i++) {
+    if(addr[i] != 0) return true;
+  }
+  return false;
+}
