@@ -206,11 +206,11 @@ document.addEventListener('DOMContentLoaded', () => {
             })
             .then(data => {
                 // Update local state based on server response
-                if (data.tempType === "0" || data.tempType === 0) {
+                if (data.temp_type === "0" || data.temp_type === 0) {
                     serverState = 'C';
                     clientState = 'C';
                     cfSwitchBtn.textContent = 'Switch to °F';
-                } else if (data.tempType === "1" || data.tempType === 1) {
+                } else if (data.temp_type === "1" || data.temp_type === 1) {
                     serverState = 'F';
                     clientState = 'F';
                     cfSwitchBtn.textContent = 'Switch to °C';
