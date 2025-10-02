@@ -25,7 +25,7 @@ void serverTask(void * parameter) {
 void hardwareTask(void * parameter) {
   for(;;) {
     hardwareManager.update();
-    vTaskDelay(1 / portTICK_PERIOD_MS); // 10ms delay
+    taskYIELD(); // Yield to other tasks but run as fast as possible
   }
 }
 
@@ -38,7 +38,6 @@ void setup() {
   
   // Initialize server and pass hardware manager pointer
   server_setup(&hardwareManager);
-  
   // Create server task on core 0
   xTaskCreatePinnedToCore(
     serverTask,       /* Task function */

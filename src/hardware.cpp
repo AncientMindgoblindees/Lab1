@@ -25,8 +25,8 @@ HardwareManager::HardwareManager()
     cachedTemp1(-127.0),
     cachedTemp2(-127.0),
     tempType(1),
-    button1{GPIO_PIN25, false, 0, 20},
-    button2{GPIO_PIN26, false, 0, 20},
+    button1{GPIO_PIN25, false, 0, 10},
+    button2{GPIO_PIN26, false, 0, 10},
     buttonQueue(nullptr),
     lastOledUpdate(0),
     lastServerDataUpdate(0)
@@ -152,23 +152,28 @@ void HardwareManager::initializeDisplay() {
 
 void HardwareManager::update() {
   int btn;
+  bool buttonPressed = false;
   
-  // Check for button presses (non-blocking)
-  if(xQueueReceive(buttonQueue, &btn, 0)) {
-    //processButtonPress(btn);
-    // Update display immediately when button is pressed
+  // Drain all button presses from queue quickly
+  // This processes all pending button presses in one go
+  while(xQueueReceive(buttonQueue, &btn, 0)) {
+    buttonPressed = true;
+    // Don't need to do anything with btn value
+    // The ISR already toggled the sensor_active flags
+  }
+  
+  // Get current time once to avoid multiple millis() calls
+  uint32_t current = millis();
+  
+  // Update display immediately if button was pressed OR periodically
+  if(buttonPressed || (current - lastOledUpdate > OLED_UPDATE_INTERVAL)) {
+    lastOledUpdate = current;
     updateDisplay();
-  } else {
-    // Update OLED periodically
-    if(millis() - lastOledUpdate > OLED_UPDATE_INTERVAL) {
-      lastOledUpdate = millis();
-      updateDisplay();
-    }
   }
   
   // Update sensor readings periodically
-  if(millis() - lastServerDataUpdate > SENSOR_UPDATE_INTERVAL) {
-    lastServerDataUpdate = millis();
+  if(current - lastServerDataUpdate > SENSOR_UPDATE_INTERVAL) {
+    lastServerDataUpdate = current;
     readSensorValues();
   }
 }
@@ -303,7 +308,6 @@ void HardwareManager::readSensorValues() {
     cachedTemp2 = sensors->getTempC(sensor2Addr);
   }
 }
-
 float HardwareManager::readSensor(int sensorNum) {
   // Return cached values instead of querying sensors directly
   if (sensorNum == 1) {
@@ -325,15 +329,10 @@ void HardwareManager::handleButton1Press() {
 
 void HardwareManager::handleButton2Press() {
   unsigned long currentTime = millis();
-  
-  // Check if enough time has passed since last trigger
-  //if (currentTime - button2.lastDebounceTime > button2.debounceDelay) {
-    //button2.lastDebounceTime = currentTime;
     sensor2_active = !sensor2_active;
-    
     static const int btn = GPIO_PIN26;
     BaseType_t xHigherPriorityTaskWoken = pdFALSE;
     xQueueSendFromISR(buttonQueue, &btn, &xHigherPriorityTaskWoken);
     if (xHigherPriorityTaskWoken) portYIELD_FROM_ISR();
-  //}
 }
+

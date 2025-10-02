@@ -35,7 +35,8 @@ public:
   bool isSensor2Active() const { return sensor2_active; }
   void setSensor1Active(bool active) { sensor1_active = active; }
   void setSensor2Active(bool active) { sensor2_active = active; }
-    bool isTempValid(float temp) const;
+  bool isTempValid(float temp) const;
+
   // Queue access for ISR
   QueueHandle_t getButtonQueue() { return buttonQueue; }
   float getCachedSensor1Temp() const { return cachedTemp1; }
@@ -87,7 +88,7 @@ private:
   static const uint8_t GPIO_PIN25 = 25;
   static const uint8_t GPIO_PIN26 = 26;
   static const uint16_t OLED_UPDATE_INTERVAL = 20;
-  static const uint16_t SENSOR_UPDATE_INTERVAL = 20;
+  static const uint16_t SENSOR_UPDATE_INTERVAL = 1000;
 };
 
 // Global instance pointer for ISR access
