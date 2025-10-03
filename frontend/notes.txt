@@ -1,4 +1,3 @@
-The next step is to ensure that the temperature data receieved from the uC is appended directly to the webpge
-    ^ Right now, the data is pushed into a string and then displayed to the webpage, but I would rather have 
-      the raw data calculated within the webpage formatting
+Default disconnected: -196.6 F OR -127.0 C
+
 
