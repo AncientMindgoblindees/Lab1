@@ -25,6 +25,23 @@
     <!-- Canvas for plotting temperature data -->
     <canvas id="tempGraph"></canvas>
 
+    <!-- Alerts -->
+    <div id="alert" style="margin-top: 20px;">
+        <h2>Alerts</h2>
+        <label>Min Temp: <input type="number" id="min_temp" value=""></label><br>
+        <label>Max Temp: <input type="number" id="max_temp" value=""></label><br>
+        <label>Recipient Email: <input type="text" id="recipient" placeholder="Enter email"></label><br>
+        <label>Message: <input type="text" id="alert_message" placeholder="Temperature out of range!"></label>
+    </div>
+
+    <!--EmailJS integration-->
+    <script type="text/javascript" src="https://cdn.jsdelivr.net/npm/@emailjs/browser@4/dist/email.min.js"></script>
+    <script>
+        (function(){
+            emailjs.init("z3hjVeB34K-xmqXdc");
+        })();
+    </script>
+
     <!-- Script section for interactivity -->
     <script src="scripts.js"></script>
 </body>

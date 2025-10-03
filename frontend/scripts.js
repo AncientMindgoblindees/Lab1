@@ -12,10 +12,51 @@ document.addEventListener('DOMContentLoaded', () => {
     const sensor1Display = document.getElementById('sensor1_value');
     const sensor2Display = document.getElementById('sensor2_value');
 
+    // ========= Alert UI Elements ========
+    const minTempInput = document.getElementById('min_temp');
+    const maxTempInput = document.getElementById('max_temp');
+    const recipientInput = document.getElementById('recipient');
+    const alertMessageInput = document.getElementById('alert_message');
+
     // ======== State ========
     // Will be updated from server on load
     let serverState = 'F';
     let clientState = 'F';
+    let alertSent = false;
+
+    // EmailJS configuration
+    function sendEmailAlert(recipient, message, sensor1, sensor2){
+        emailjs.send("service_j2b0teh","template_6dhvt9g",{
+            to_email: recipient,
+            message: message,
+            date: new Date().toLocaleString(),
+            sensor1: sensor1 !== null ? sensor1.toFixed(2) : "no data",
+            sensor2: sensor2 !== null ? sensor2.toFixed(2) : "no data"
+        })
+        .then(() => console.log("Alert email sent"))
+        .catch(err => console.error("Error sending alert email:", err));
+    }
+
+    //Alert checking function
+    function checkAlerts(last){
+        const min = parseFloat(minTempInput.value);
+        const max = parseFloat(maxTempInput.value);
+        const recipient = recipientInput.value.trim();
+        const message = alertMessageInput.value.trim();
+
+        if (!recipient || !message || isNaN(min) || isNaN(max)) return;
+        
+        const outOfRange = 
+            (last.sensor1Celsius !== null && (last.sensor1Celsius < min || last.sensor1Celsius > max)) ||
+            (last.sensor2Celsius !== null && (last.sensor2Celsius < min || last.sensor2Celsius > max));
+
+        if (outOfRange && !alertSent) {
+            sendEmailAlert(recipient, message, last.sensor1Celsius, last.sensor2Celsius);
+            alertSent = true;
+        } else if (!outOfRange) {
+            alertSent = false; // Reset alert if back in range
+        }
+    }
 
     // Helper function to sync the local state and server state
     async function syncStateWithServer() {
@@ -186,6 +227,10 @@ document.addEventListener('DOMContentLoaded', () => {
             
             // Display the raw sensor values
             displayLatest();
+
+            // Check alerts
+            const last = tempStore.latest();
+            if (last) checkAlerts(last);
 
         } catch (err) {
             // Network/timeout/parse error -> store "missing"
