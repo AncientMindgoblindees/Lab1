@@ -47,11 +47,11 @@ document.addEventListener('DOMContentLoaded', () => {
         if (!recipient || !message || isNaN(min) || isNaN(max)) return;
         
         const outOfRange = 
-            (last.sensor1Celsius !== null && (last.sensor1Celsius < min || last.sensor1Celsius > max)) ||
-            (last.sensor2Celsius !== null && (last.sensor2Celsius < min || last.sensor2Celsius > max));
+            (last.sensor1 !== null && (last.sensor1 < min || last.sensor1 > max)) ||
+            (last.sensor2 !== null && (last.sensor2 < min || last.sensor2 > max));
 
         if (outOfRange && !alertSent) {
-            sendEmailAlert(recipient, message, last.sensor1Celsius, last.sensor2Celsius);
+            sendEmailAlert(recipient, message, last.sensor1, last.sensor2);
             alertSent = true;
         } else if (!outOfRange) {
             alertSent = false; // Reset alert if back in range
@@ -125,13 +125,13 @@ document.addEventListener('DOMContentLoaded', () => {
         const unit = serverState === 'F' ? '°F' : '°C';
         
         // Check for unplugged sensors (-196.6°F or -127.0°C)
-        const sensor1Unplugged = last.rawSensor1 !== null && 
-       ((serverState === 'F' && Math.abs(last.rawSensor1 - (-196.6)) < 0.1) || 
-        (serverState === 'C' && Math.abs(last.rawSensor1 - (-127.0)) < 0.1));
+        const sensor1Unplugged = last.sensor1 !== null && 
+       ((serverState === 'F' && Math.abs(last.sensor1 - (-196.6)) < 0.1) || 
+        (serverState === 'C' && Math.abs(last.sensor1 - (-127.0)) < 0.1));
         
-        const sensor2Unplugged = last.rawSensor2 !== null && 
-       ((serverState === 'F' && Math.abs(last.rawSensor2 - (-196.6)) < 0.1) || 
-        (serverState === 'C' && Math.abs(last.rawSensor2 - (-127.0)) < 0.1));    
+        const sensor2Unplugged = last.sensor2 !== null && 
+       ((serverState === 'F' && Math.abs(last.sensor2 - (-196.6)) < 0.1) || 
+        (serverState === 'C' && Math.abs(last.sensor2 - (-127.0)) < 0.1));    
         
         // Display sensor 1
         if (sensor1Unplugged) {
