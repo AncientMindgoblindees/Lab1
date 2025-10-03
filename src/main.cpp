@@ -1,8 +1,6 @@
 #include <Arduino.h>
-#include <Arduino.h>
 #include "server.h"
 #include "hardware.h"
-
 
 /*================================================================
 +
@@ -12,10 +10,6 @@
 +
 +===============================================================*/
 
-// Global hardware manager instance
-HardwareManager hardwareManager;
-
-// FreeRTOS task for server
 // Global hardware manager instance
 HardwareManager hardwareManager;
 
@@ -55,23 +49,7 @@ void setup() {
     0);              /* Core 0 */
   
   // Create hardware task on core 1
-    serverTask,       /* Task function */
-    "Server Task",    /* Name of task */
-    8192,            /* Stack size */
-    NULL,            /* Parameter */
-    1,               /* Priority */
-    NULL,            /* Task handle */
-    0);              /* Core 0 */
-  
-  // Create hardware task on core 1
   xTaskCreatePinnedToCore(
-    hardwareTask,     /* Task function */
-    "Hardware Task",  /* Name of task */
-    4096,            /* Stack size */
-    NULL,            /* Parameter */
-    1,               /* Priority */
-    NULL,            /* Task handle */
-    1);              /* Core 1 */
     hardwareTask,     /* Task function */
     "Hardware Task",  /* Name of task */
     4096,            /* Stack size */
@@ -81,8 +59,6 @@ void setup() {
     1);              /* Core 1 */
 }
 
-
 void loop() {
-  // Empty - all logic in FreeRTOS tasks
   // Empty - all logic in FreeRTOS tasks
 }

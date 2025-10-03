@@ -38,28 +38,13 @@ HardwareManager::HardwareManager()
 }
 
 void HardwareManager::begin() {
-void HardwareManager::begin() {
   Serial.println("Starting hardware setup...");
   
   // Initialize I2C
-  // Initialize I2C
   Wire.begin(21, 22); // SDA=21, SCL=22 for ESP32
-  Wire.setClock(400000);
   Wire.setClock(400000);
   Serial.println("I2C initialized on pins 21(SDA), 22(SCL)");
   
-  // Scan I2C bus
-  scanI2CBus();
-  
-  // Initialize components
-  initializeButtons();
-  initializeSensors();
-  initializeDisplay();
-  
-  Serial.println("Hardware setup complete!");
-}
-
-void HardwareManager::scanI2CBus() {
   // Scan I2C bus
   scanI2CBus();
   
@@ -103,15 +88,8 @@ void HardwareManager::scanI2CBus() {
 }
 
 void HardwareManager::initializeButtons() {
-  }
-}
-
-void HardwareManager::initializeButtons() {
   pinMode(button1.PIN, INPUT_PULLUP);
   pinMode(button2.PIN, INPUT_PULLUP);
-  buttonQueue = xQueueCreate(20, sizeof(int));
-  attachInterrupt(digitalPinToInterrupt(button1.PIN), button25_ISR, FALLING);
-  attachInterrupt(digitalPinToInterrupt(button2.PIN), button26_ISR, FALLING);
   buttonQueue = xQueueCreate(20, sizeof(int));
   attachInterrupt(digitalPinToInterrupt(button1.PIN), button25_ISR, FALLING);
   attachInterrupt(digitalPinToInterrupt(button2.PIN), button26_ISR, FALLING);
@@ -123,22 +101,12 @@ void HardwareManager::initializeSensors() {
   sensors = new DallasTemperature(oneWire);
   
   sensors->begin();
-}
-
-void HardwareManager::initializeSensors() {
-  oneWire = new OneWire(ONE_WIRE_BUS);
-  sensors = new DallasTemperature(oneWire);
-  
-  sensors->begin();
   Serial.print("Found ");
-  Serial.print(sensors->getDeviceCount());
   Serial.print(sensors->getDeviceCount());
   Serial.println(" temperature sensors");
   
   if (sensors->getAddress(sensor1Addr, 0)) {
-  if (sensors->getAddress(sensor1Addr, 0)) {
     Serial.println("Sensor 1 found!");
-    sensor1_active = false; // Start inactive, user must enable
     sensor1_active = false; // Start inactive, user must enable
   } else {
     Serial.println("Sensor 1 not found.");
@@ -146,35 +114,25 @@ void HardwareManager::initializeSensors() {
   }
 
   if (sensors->getAddress(sensor2Addr, 1)) {
-  if (sensors->getAddress(sensor2Addr, 1)) {
     Serial.println("Sensor 2 found!");
-    sensor2_active = false; // Start inactive, user must enable
     sensor2_active = false; // Start inactive, user must enable
   } else {
     Serial.println("Sensor 2 not found.");
     sensor2_active = false;
   }
 }
-  }
-}
 
 void HardwareManager::initializeDisplay() {
-void HardwareManager::initializeDisplay() {
   Serial.println("Initializing OLED display...");
-  
-  display = new Adafruit_SSD1306(SCREEN_WIDTH, SCREEN_HEIGHT, &Wire, OLED_RESET);
-  
   
   display = new Adafruit_SSD1306(SCREEN_WIDTH, SCREEN_HEIGHT, &Wire, OLED_RESET);
   
   Serial.print("Attempting address 0x3C...");
   
   if(!display->begin(SSD1306_SWITCHCAPVCC, SCREEN_ADDRESS)) {
-  if(!display->begin(SSD1306_SWITCHCAPVCC, SCREEN_ADDRESS)) {
     Serial.println(" FAILED");
     Serial.print("Attempting address 0x3D...");
     
-    if(!display->begin(SSD1306_SWITCHCAPVCC, 0x3D)) {
     if(!display->begin(SSD1306_SWITCHCAPVCC, 0x3D)) {
       Serial.println(" FAILED");
       Serial.println("Display initialization failed completely!");
@@ -318,7 +276,6 @@ void HardwareManager::handleButton1Press() {
     if (xHigherPriorityTaskWoken) portYIELD_FROM_ISR();
 }
 
-void HardwareManager::handleButton2Press() {
 void HardwareManager::handleButton2Press() {
   unsigned long currentTime = millis();
     sensor2_active = !sensor2_active;
